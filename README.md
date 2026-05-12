@@ -84,3 +84,4 @@ src/
 - Auth es mock (sin backend)
 - Datos almacenados localmente
 - Horario y materias son ejemplos
+"# MANAGERTASK"  
