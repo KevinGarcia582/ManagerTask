@@ -85,3 +85,4 @@ src/
 - Datos almacenados localmente
 - Horario y materias son ejemplos
 "# MANAGERTASK"  
+"# ManagerTask" 
