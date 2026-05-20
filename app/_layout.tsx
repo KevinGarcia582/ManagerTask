@@ -1,4 +1,5 @@
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
+import { requestNotificationPermissions } from "@/src/lib/notifications";
 import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
@@ -15,7 +16,7 @@ function RootLayoutNav() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        router.replace("/dashboard");
+        router.replace("/(tabs)");
       } else {
         router.replace("/login");
       }
@@ -32,14 +33,18 @@ function RootLayoutNav() {
 
   return (
     <Stack>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="register" options={{ headerShown: false }} />
-      <Stack.Screen name="dashboard" options={{ headerShown: false }} />
     </Stack>
   );
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    requestNotificationPermissions();
+  }, []);
+
   return (
     <AuthProvider>
       <RootLayoutNav />

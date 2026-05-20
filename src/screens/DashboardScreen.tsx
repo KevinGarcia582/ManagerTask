@@ -1,15 +1,15 @@
+import { supabase } from "@/src/lib/supabase";
 import { useAuth } from "@/src/context/AuthContext";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
-    Alert,
-    Picker,
+    ActivityIndicator,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
-    TouchableOpacity,
-    View
+    View,
 } from "react-native";
 
 const COLORS = {
@@ -19,301 +19,237 @@ const COLORS = {
   white: "#ffffff",
   gray: "#666666",
   border: "#e0e0e0",
+  success: "#2ECC71",
+  warning: "#F39C12",
 };
 
-const SCHEDULE_DATA = {
-  "3": {
-    hours: [
-      "07:00 - 08:00",
-      "08:00 - 09:00",
-      "09:00 - 10:00",
-      "10:00 - 11:00",
-      "11:00 - 12:00",
-      "12:00 - 13:00",
-      "13:00 - 14:00",
-      "14:00 - 15:00",
-      "15:00 - 16:00",
-      "16:00 - 17:00",
-      "17:00 - 18:00",
-    ],
-    classes: {
-      0: { Thursday: "Matemáticas I" },
-      1: { Monday: "Matemáticas I", Wednesday: "Matemáticas I" },
-      2: { Tuesday: "Programación I", Thursday: "Programación I" },
-      4: { Monday: "Física I", Wednesday: "Física I", Friday: "Física I" },
-      5: { Tuesday: "Bases de Datos", Thursday: "Bases de Datos" },
-      7: { Monday: "Comunicación", Wednesday: "Comunicación" },
-    },
-  },
+interface SubjectItem {
+  id: string;
+  name: string;
+  code: string | null;
+  credits: number;
+  color: string;
+}
+
+interface ScheduleItem {
+  id: string;
+  subject_id: string;
+  start_time: string;
+  end_time: string;
+  classroom: string | null;
+  subjects: SubjectItem | null;
+}
+
+interface ActivityItem {
+  id: string;
+  type: "tarea" | "parcial" | "recordatorio";
+  title: string;
+  due_date: string;
+  subject_id: string | null;
+  priority: string;
+  completed: boolean;
+  subjects: SubjectItem | null;
+}
+
+const DAYS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+const ACTIVITY_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
+  tarea: "file-document-outline",
+  parcial: "pencil-box-outline",
+  recordatorio: "bell-outline",
 };
 
-const SUBJECTS = {
-  "3": [
-    {
-      id: "1",
-      name: "Matemáticas I",
-      credits: 4,
-      type: "Obligatoria",
-      color: "#4A90E2",
-    },
-    {
-      id: "2",
-      name: "Programación I",
-      credits: 4,
-      type: "Obligatoria",
-      color: "#7ED321",
-    },
-    {
-      id: "3",
-      name: "Física I",
-      credits: 4,
-      type: "Obligatoria",
-      color: "#F5A623",
-    },
-    {
-      id: "4",
-      name: "Bases de Datos",
-      credits: 4,
-      type: "Obligatoria",
-      color: "#BD10E0",
-    },
-    {
-      id: "5",
-      name: "Comunicación",
-      credits: 2,
-      type: "Obligatoria",
-      color: "#E71D36",
-    },
-  ],
-};
-
-const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-const DAYS_KEYS = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
+function formatRelativeDate(dueDateStr: string): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDateStr + "T00:00:00");
+  const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return "Para hoy";
+  if (diffDays === 1) return "Para mañana";
+  return `Para dentro de ${diffDays} días`;
+}
 
 export default function DashboardScreen() {
-  const { user, logout } = useAuth();
-  const [semester, setSemester] = useState(user?.semester || "3");
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { user } = useAuth();
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const schedule = SCHEDULE_DATA[semester as keyof typeof SCHEDULE_DATA];
-  const subjects = SUBJECTS[semester as keyof typeof SUBJECTS];
+  const [todayClasses, setTodayClasses] = useState<ScheduleItem[]>([]);
+  const [upcomingActivities, setUpcomingActivities] = useState<ActivityItem[]>([]);
+  const [academicLoad, setAcademicLoad] = useState<{ level: string; color: string }>({
+    level: "",
+    color: COLORS.gray,
+  });
 
-  const handleLogout = () => {
-    Alert.alert("Cerrar Sesión", "¿Estás seguro de que deseas cerrar sesión?", [
-      { text: "Cancelar", onPress: () => {} },
-      {
-        text: "Sí, cerrar sesión",
-        onPress: async () => {
-          await logout();
-          router.replace("/login");
-        },
-      },
-    ]);
-  };
+  const fetchDashboard = useCallback(async () => {
+    if (!user?.id) return;
 
-  const handleSaveSchedule = () => {
-    Alert.alert("Éxito", "Horario guardado correctamente");
-  };
+    const today = new Date();
+    const jsDay = today.getDay();
+    const dbDay = jsDay === 0 ? 7 : jsDay;
 
-  const getClassAtTime = (timeIndex: number, dayIndex: number) => {
-    const dayKey = DAYS_KEYS[dayIndex];
-    const classData = schedule?.classes?.[timeIndex];
-    if (classData && classData[dayKey as keyof typeof classData]) {
-      return classData[dayKey as keyof typeof classData];
+    try {
+      const [
+        { data: todayData },
+        { data: activitiesData },
+        { data: weekSchedules },
+      ] = await Promise.all([
+        supabase
+          .from("schedules")
+          .select("id, subject_id, start_time, end_time, classroom, subjects(id, name, code, credits, color)")
+          .eq("user_id", user.id)
+          .eq("day_of_week", dbDay)
+          .order("start_time"),
+
+        supabase
+          .from("activities")
+          .select("id, type, title, due_date, subject_id, priority, completed, subjects(id, name, code, credits, color)")
+          .eq("user_id", user.id)
+          .eq("completed", false)
+          .gte("due_date", today.toISOString().split("T")[0])
+          .order("due_date")
+          .limit(5),
+
+        supabase
+          .from("schedules")
+          .select("start_time, end_time")
+          .eq("user_id", user.id)
+          .gte("day_of_week", 1)
+          .lte("day_of_week", 7),
+      ]);
+
+      setTodayClasses((todayData as any[]) || []);
+      setUpcomingActivities((activitiesData as any[]) || []);
+
+      let scheduleHours = 0;
+      (weekSchedules as any[])?.forEach((s: any) => {
+        if (s.start_time && s.end_time) {
+          const [sh, sm] = s.start_time.split(":").map(Number);
+          const [eh, em] = s.end_time.split(":").map(Number);
+          scheduleHours += (eh + em / 60) - (sh + sm / 60);
+        }
+      });
+
+      if (scheduleHours <= 20) {
+        setAcademicLoad({ level: "Ligero", color: COLORS.success });
+      } else if (scheduleHours <= 35) {
+        setAcademicLoad({ level: "Moderado", color: COLORS.warning });
+      } else {
+        setAcademicLoad({ level: "Pesado", color: COLORS.primary });
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard:", error);
+    } finally {
+      setLoading(false);
     }
-    return null;
+  }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchDashboard();
+    }, [fetchDashboard])
+  );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchDashboard();
+    setRefreshing(false);
   };
 
-  const getSubjectColor = (subjectName: string) => {
-    const subject = subjects?.find((s) => s.name === subjectName);
-    return subject?.color || "#999";
-  };
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.dark} />
+        <Text style={styles.loadingText}>Cargando panel...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setMenuOpen(!menuOpen)}>
-          <MaterialCommunityIcons name="menu" size={28} color={COLORS.white} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <MaterialCommunityIcons
-            name="school"
-            size={32}
-            color={COLORS.white}
-          />
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>ManagerTask</Text>
-            <Text style={styles.headerSubtitle}>
-              Sistema de Gestión de Tareas
-            </Text>
-          </View>
-        </View>
-        <View style={styles.spacer} />
+        <MaterialCommunityIcons name="school" size={28} color={COLORS.white} />
+        <Text style={styles.headerTitle}>ManagerTask</Text>
       </View>
 
-      {/* Dropdown Menu */}
-      {menuOpen && (
-        <View style={styles.menu}>
-          <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-            <MaterialCommunityIcons
-              name="logout"
-              size={24}
-              color={COLORS.primary}
-            />
-            <Text style={styles.menuItemText}>Cerrar Sesión</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.dark]} />}
+      >
+        {/* Academic Load Badge */}
+        {academicLoad.level !== "" && (
+          <View style={[styles.loadBadge, { backgroundColor: academicLoad.color }]}>
+            <Text style={styles.loadBadgeText}>Carga de esta semana: {academicLoad.level}</Text>
+          </View>
+        )}
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* User Info */}
-        <View style={styles.userCard}>
-          <Text style={styles.userLabel}>Usuario: {user?.username}</Text>
-          <Text style={styles.userLabel}>Programa: {user?.program}</Text>
-        </View>
-
-        {/* Schedule Section */}
+        {/* Today's Schedule */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <MaterialCommunityIcons
-              name="calendar"
-              size={24}
-              color={COLORS.dark}
-            />
-            <Text style={styles.sectionTitle}>Horario Semanal</Text>
+            <MaterialCommunityIcons name="calendar-today" size={22} color={COLORS.dark} />
+            <Text style={styles.sectionTitle}>Clases de hoy</Text>
+            <Text style={styles.sectionSubtitle}>{DAYS[new Date().getDay()]}</Text>
           </View>
 
-          {/* Schedule Table */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <View style={[styles.tableCell, styles.hourColumn]}>
-                  <Text style={styles.tableHeaderText}>Hora</Text>
-                </View>
-                {DAYS.map((day, idx) => (
-                  <View key={idx} style={[styles.tableCell, styles.dayColumn]}>
-                    <Text style={styles.tableHeaderText}>{day}</Text>
-                  </View>
-                ))}
-              </View>
-
-              {schedule?.hours.map((hour, timeIdx) => (
-                <View key={timeIdx} style={styles.tableRow}>
-                  <View style={[styles.tableCell, styles.hourColumn]}>
-                    <Text style={styles.timeText}>{hour}</Text>
-                  </View>
-                  {DAYS.map((_, dayIdx) => {
-                    const className = getClassAtTime(timeIdx, dayIdx);
-                    const bgColor = className
-                      ? getSubjectColor(className)
-                      : COLORS.light;
-                    return (
-                      <View
-                        key={dayIdx}
-                        style={[
-                          styles.tableCell,
-                          styles.dayColumn,
-                          {
-                            backgroundColor: bgColor,
-                            opacity: className ? 1 : 0.3,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.classText,
-                            className && { color: COLORS.white },
-                          ]}
-                        >
-                          {className || ""}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              ))}
+          {todayClasses.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons name="calendar-blank" size={40} color={COLORS.border} />
+              <Text style={styles.emptyText}>No tienes clases hoy</Text>
+              <Text style={styles.emptySubtext}>Agrega tu horario desde la sección Horario</Text>
             </View>
-          </ScrollView>
+          ) : (
+            todayClasses.map((cls) => (
+              <View key={cls.id} style={styles.scheduleItem}>
+                <View style={[styles.scheduleDot, { backgroundColor: cls.subjects?.color || COLORS.dark }]} />
+                <View style={styles.scheduleInfo}>
+                  <Text style={styles.scheduleName}>{cls.subjects?.name || "Sin materia"}</Text>
+                  <Text style={styles.scheduleTime}>
+                    {cls.start_time?.slice(0, 5)} - {cls.end_time?.slice(0, 5)}
+                    {cls.classroom ? ` | ${cls.classroom}` : ""}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.border} />
+              </View>
+            ))
+          )}
         </View>
 
-        {/* Semester Selector */}
+        {/* Upcoming Activities */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <MaterialCommunityIcons
-              name="book-open"
-              size={24}
-              color={COLORS.dark}
-            />
-            <Text style={styles.sectionTitle}>Semestre</Text>
-          </View>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={semester}
-              onValueChange={setSemester}
-              style={styles.picker}
-            >
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"].map((s) => (
-                <Picker.Item key={s} label={`${s}° Semestre`} value={s} />
-              ))}
-            </Picker>
-          </View>
-        </View>
-
-        {/* Subjects Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <MaterialCommunityIcons
-              name="book-multiple"
-              size={24}
-              color={COLORS.dark}
-            />
-            <Text style={styles.sectionTitle}>
-              Materias del {semester}° Semestre
-            </Text>
+            <MaterialCommunityIcons name="clipboard-text-outline" size={22} color={COLORS.dark} />
+            <Text style={styles.sectionTitle}>Próximas actividades</Text>
           </View>
 
-          {subjects?.map((subject) => (
-            <View key={subject.id} style={styles.subjectCard}>
-              <View
-                style={[styles.subjectDot, { backgroundColor: subject.color }]}
-              />
-              <View style={styles.subjectInfo}>
-                <Text style={styles.subjectName}>{subject.name}</Text>
-                <Text style={styles.subjectMeta}>
-                  Créditos: {subject.credits}
-                </Text>
-              </View>
-              <View style={styles.subjectBadge}>
-                <Text
-                  style={[styles.subjectBadgeText, { color: subject.color }]}
-                >
-                  {subject.type}
-                </Text>
-              </View>
+          {upcomingActivities.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons name="clipboard-check-outline" size={40} color={COLORS.border} />
+              <Text style={styles.emptyText}>Sin actividades pendientes</Text>
+              <Text style={styles.emptySubtext}>Agrega tareas, parciales o recordatorios</Text>
             </View>
-          ))}
+          ) : (
+            upcomingActivities.map((activity) => (
+              <View key={activity.id} style={styles.activityItem}>
+                <View style={styles.activityIconContainer}>
+                  <MaterialCommunityIcons
+                    name={ACTIVITY_ICONS[activity.type] || "checkbox-blank-circle-outline"}
+                    size={22}
+                    color={activity.subjects?.color || COLORS.dark}
+                  />
+                </View>
+                <View style={styles.activityInfo}>
+                  <Text style={styles.activityTitle} numberOfLines={1}>{activity.title}</Text>
+                  <Text style={styles.activityMeta}>
+                    {activity.subjects?.name || "Sin materia"} | {formatRelativeDate(activity.due_date)}
+                  </Text>
+                </View>
+                <View style={[styles.priorityBadge, { backgroundColor: activity.type === "tarea" ? COLORS.warning : COLORS.primary }]}>
+                  <Text style={styles.priorityText}>{activity.type === "tarea" ? "Tarea" : "Parcial"}</Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
-
-        {/* Save Button */}
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={handleSaveSchedule}
-        >
-          <MaterialCommunityIcons
-            name="content-save"
-            size={24}
-            color={COLORS.white}
-          />
-          <Text style={styles.saveButtonText}>Guardar Horario</Text>
-        </TouchableOpacity>
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
@@ -326,6 +262,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.light,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.light,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.gray,
+  },
   header: {
     backgroundColor: COLORS.dark,
     paddingTop: 16,
@@ -333,69 +280,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  headerCenter: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 12,
-  },
-  headerText: {
-    marginLeft: 12,
+    justifyContent: "center",
+    gap: 10,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
     color: COLORS.white,
   },
-  headerSubtitle: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.8)",
-  },
-  spacer: {
-    width: 28,
-  },
-  menu: {
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  menuItemText: {
-    marginLeft: 12,
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.dark,
-  },
   content: {
     flex: 1,
     padding: 16,
   },
-  userCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 8,
-    padding: 12,
+  loadBadge: {
+    alignSelf: "center",
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
   },
-  userLabel: {
-    fontSize: 14,
-    color: COLORS.dark,
-    fontWeight: "500",
-    marginVertical: 4,
+  loadBadgeText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: "bold",
   },
   section: {
     backgroundColor: COLORS.white,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -403,116 +321,96 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
     color: COLORS.dark,
     marginLeft: 8,
-  },
-  table: {
-    backgroundColor: COLORS.light,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  tableHeader: {
-    flexDirection: "row",
-    backgroundColor: COLORS.dark,
-  },
-  tableRow: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  tableCell: {
-    paddingHorizontal: 8,
-    paddingVertical: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRightWidth: 1,
-    borderRightColor: COLORS.border,
-  },
-  hourColumn: {
-    width: 80,
-    backgroundColor: COLORS.light,
-  },
-  dayColumn: {
-    width: 100,
-  },
-  tableHeaderText: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: COLORS.white,
-  },
-  timeText: {
-    fontSize: 11,
-    color: COLORS.dark,
-    fontWeight: "500",
-  },
-  classText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: COLORS.gray,
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  picker: {
-    color: COLORS.dark,
-  },
-  subjectCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    backgroundColor: COLORS.light,
-    borderRadius: 6,
-  },
-  subjectDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  subjectInfo: {
     flex: 1,
   },
-  subjectName: {
+  sectionSubtitle: {
+    fontSize: 13,
+    color: COLORS.gray,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.gray,
+    marginTop: 8,
+    fontWeight: "500",
+  },
+  emptySubtext: {
+    fontSize: 12,
+    color: COLORS.border,
+    marginTop: 4,
+  },
+  scheduleItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.light,
+  },
+  scheduleDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 12,
+  },
+  scheduleInfo: {
+    flex: 1,
+  },
+  scheduleName: {
     fontSize: 14,
     fontWeight: "600",
     color: COLORS.dark,
   },
-  subjectMeta: {
+  scheduleTime: {
     fontSize: 12,
     color: COLORS.gray,
     marginTop: 2,
   },
-  subjectBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    borderWidth: 1,
-  },
-  subjectBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  saveButton: {
-    backgroundColor: COLORS.primary,
+  activityItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-    paddingVertical: 14,
-    marginBottom: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.light,
   },
-  saveButtonText: {
+  activityIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.light,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  activityInfo: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.dark,
+  },
+  activityMeta: {
+    fontSize: 12,
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  priorityBadge: {
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  priorityText: {
     color: COLORS.white,
-    fontSize: 16,
-    fontWeight: "bold",
-    marginLeft: 8,
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "capitalize",
   },
   bottomSpacing: {
     height: 20,

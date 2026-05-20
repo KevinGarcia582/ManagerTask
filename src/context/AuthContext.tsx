@@ -1,105 +1,131 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from "@/src/lib/supabase";
+import { Session } from "@supabase/supabase-js";
 import React, { createContext, useEffect, useState } from "react";
 
 export interface User {
   id: string;
-  username: string;
-  program: string;
-  semester: string;
+  email: string;
+  fullName: string | null;
+  program: string | null;
+  semester: number | null;
 }
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  register: (
-    username: string,
-    password: string,
-    program: string,
-    semester: string,
-  ) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, fullName: string) => Promise<{ userId: string }>;
   logout: () => Promise<void>;
+  updateProfile: (program: string, semester: number, userId?: string, fullName?: string) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(
-  undefined,
-);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    bootstrapAsync();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        fetchProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        fetchProfile(session.user.id);
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const bootstrapAsync = async () => {
+  const fetchProfile = async (userId: string) => {
     try {
-      const userData = await AsyncStorage.getItem("user");
-      if (userData) {
-        setUser(JSON.parse(userData));
-      }
-    } catch (e) {
-      console.error("Failed to restore session", e);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name, program, semester")
+        .eq("id", userId)
+        .single();
+
+      if (error) throw error;
+
+      setUser({
+        id: userId,
+        email: session?.user.email || "",
+        fullName: data.full_name,
+        program: data.program,
+        semester: data.semester,
+      });
+    } catch (error) {
+      console.error("Error fetching profile:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const login = async (username: string, password: string) => {
-    setLoading(true);
-    try {
-      // Mock authentication
-      const newUser: User = {
-        id: Date.now().toString(),
-        username,
-        program: "Ingeniería en Sistemas",
-        semester: "3",
-      };
-
-      await AsyncStorage.setItem("user", JSON.stringify(newUser));
-      setUser(newUser);
-    } finally {
-      setLoading(false);
-    }
+  const refreshProfile = async () => {
+    if (!session?.user.id) return;
+    await fetchProfile(session.user.id);
   };
 
-  const register = async (
-    username: string,
-    password: string,
-    program: string,
-    semester: string,
-  ) => {
-    setLoading(true);
-    try {
-      const newUser: User = {
-        id: Date.now().toString(),
-        username,
-        program,
-        semester,
-      };
+  const login = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+  };
 
-      await AsyncStorage.setItem("user", JSON.stringify(newUser));
-      setUser(newUser);
-    } finally {
-      setLoading(false);
-    }
+  const register = async (email: string, password: string, fullName: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName },
+      },
+    });
+
+    if (error) throw error;
+    if (!data.user) throw new Error("No se pudo crear el usuario");
+
+    return { userId: data.user.id };
+  };
+
+  const updateProfile = async (program: string, semester: number, userId?: string, fullName?: string) => {
+    const id = userId || session?.user.id || (await supabase.auth.getSession()).data.session?.user.id;
+    if (!id) throw new Error("No hay sesión activa");
+
+    const name = fullName || user?.fullName;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ program, semester, full_name: name })
+      .eq("id", id);
+
+    if (error) throw error;
+
+    await refreshProfile();
   };
 
   const logout = async () => {
-    setLoading(true);
-    try {
-      await AsyncStorage.removeItem("user");
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, session, loading, login, register, logout, updateProfile, refreshProfile }}
+    >
       {children}
     </AuthContext.Provider>
   );

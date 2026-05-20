@@ -1,11 +1,11 @@
+import { supabase } from "@/src/lib/supabase";
 import { useAuth } from "@/src/context/AuthContext";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    Picker,
     ScrollView,
     StyleSheet,
     Text,
@@ -23,28 +23,45 @@ const COLORS = {
   border: "#e0e0e0",
 };
 
-const PROGRAMS = [
-  "Ingeniería en Sistemas",
-  "Ingeniería en Informática",
-  "Ingeniería Civil",
-  "Ingeniería Mecánica",
-  "Ingeniería Eléctrica",
-];
-
-const SEMESTERS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
-
 export default function RegisterScreen() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [program, setProgram] = useState(PROGRAMS[0]);
-  const [semester, setSemester] = useState(SEMESTERS[0]);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const { register, loading } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [programs, setPrograms] = useState<{ id: string; name: string }[]>([]);
+  const [selectedProgram, setSelectedProgram] = useState("");
+  const [loadingPrograms, setLoadingPrograms] = useState(true);
+
+  const { register, updateProfile } = useAuth();
+
+  useEffect(() => {
+    fetchPrograms();
+  }, []);
+
+  const fetchPrograms = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("programs")
+        .select("id, name")
+        .order("name");
+
+      if (error) throw error;
+      setPrograms(data || []);
+      if (data && data.length > 0) {
+        setSelectedProgram(data[0].id);
+      }
+    } catch (error) {
+      console.error("Error fetching programs:", error);
+    } finally {
+      setLoadingPrograms(false);
+    }
+  };
 
   const handleRegister = async () => {
-    if (!username || !password || !confirmPassword) {
+    if (!email.trim() || !fullName.trim() || !password || !confirmPassword) {
       Alert.alert("Error", "Por favor completa todos los campos");
       return;
     }
@@ -59,13 +76,34 @@ export default function RegisterScreen() {
       return;
     }
 
+    if (!selectedProgram) {
+      Alert.alert("Error", "Selecciona un programa académico");
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      await register(username, password, program, semester);
-      router.replace("/dashboard");
-    } catch (error) {
-      Alert.alert("Error", "No se pudo crear la cuenta");
+      const { userId } = await register(email.trim(), password, fullName.trim());
+
+      const programName = programs.find((p) => p.id === selectedProgram)?.name || "";
+      await updateProfile(programName, 0, userId, fullName.trim());
+
+      router.replace("/(tabs)");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "No se pudo crear la cuenta");
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  if (loadingPrograms) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.dark} />
+        <Text style={styles.loadingText}>Cargando programas...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -78,19 +116,33 @@ export default function RegisterScreen() {
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Crear Usuario *</Text>
+            <Text style={styles.label}>Nombre completo *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Nombre de usuario"
-              value={username}
-              onChangeText={setUsername}
-              editable={!loading}
+              placeholder="Ingresa tu nombre completo"
+              value={fullName}
+              onChangeText={setFullName}
+              editable={!isLoading}
               placeholderTextColor="#999"
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Crear Contraseña *</Text>
+            <Text style={styles.label}>Correo electrónico *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ingresa tu correo electrónico"
+              value={email}
+              onChangeText={setEmail}
+              editable={!isLoading}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Contraseña *</Text>
             <View style={styles.passwordContainer}>
               <TextInput
                 style={styles.passwordInput}
@@ -98,7 +150,7 @@ export default function RegisterScreen() {
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
-                editable={!loading}
+                editable={!isLoading}
                 placeholderTextColor="#999"
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
@@ -120,7 +172,7 @@ export default function RegisterScreen() {
                 secureTextEntry={!showConfirmPassword}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                editable={!loading}
+                editable={!isLoading}
                 placeholderTextColor="#999"
               />
               <TouchableOpacity
@@ -138,41 +190,37 @@ export default function RegisterScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Programa Académico *</Text>
             <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={program}
-                onValueChange={(itemValue) => setProgram(itemValue)}
-                enabled={!loading}
-                style={styles.picker}
-              >
-                {PROGRAMS.map((p) => (
-                  <Picker.Item key={p} label={p} value={p} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {programs.map((p) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[
+                      styles.chip,
+                      selectedProgram === p.id && styles.chipSelected,
+                    ]}
+                    onPress={() => setSelectedProgram(p.id)}
+                    disabled={isLoading}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        selectedProgram === p.id && styles.chipTextSelected,
+                      ]}
+                    >
+                      {p.name}
+                    </Text>
+                  </TouchableOpacity>
                 ))}
-              </Picker>
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Ubicación Semestral *</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={semester}
-                onValueChange={(itemValue) => setSemester(itemValue)}
-                enabled={!loading}
-                style={styles.picker}
-              >
-                {SEMESTERS.map((s) => (
-                  <Picker.Item key={s} label={`${s}° Semestre`} value={s} />
-                ))}
-              </Picker>
+              </ScrollView>
             </View>
           </View>
 
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={[styles.button, isLoading && styles.buttonDisabled]}
             onPress={handleRegister}
-            disabled={loading}
+            disabled={isLoading}
           >
-            {loading ? (
+            {isLoading ? (
               <ActivityIndicator color={COLORS.white} />
             ) : (
               <Text style={styles.buttonText}>Crear Usuario</Text>
@@ -258,13 +306,27 @@ const styles = StyleSheet.create({
     color: COLORS.dark,
   },
   pickerContainer: {
+    paddingVertical: 4,
+  },
+  chip: {
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
-    overflow: "hidden",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginRight: 8,
   },
-  picker: {
-    color: COLORS.dark,
+  chipSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  chipText: {
+    fontSize: 13,
+    color: COLORS.gray,
+  },
+  chipTextSelected: {
+    color: COLORS.white,
+    fontWeight: "600",
   },
   button: {
     backgroundColor: COLORS.primary,
@@ -294,5 +356,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.primary,
     fontWeight: "600",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.light,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.gray,
   },
 });

@@ -23,22 +23,26 @@ const COLORS = {
 };
 
 export default function LoginScreen() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const { login, loading } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
 
   const handleLogin = async () => {
-    if (!username || !password) {
+    if (!email.trim() || !password) {
       Alert.alert("Error", "Por favor completa todos los campos");
       return;
     }
 
+    setIsLoading(true);
     try {
-      await login(username, password);
-      router.replace("/dashboard");
-    } catch (error) {
-      Alert.alert("Error", "Usuario o contraseña incorrectos");
+      await login(email.trim(), password);
+      router.replace("/(tabs)");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Credenciales incorrectas");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -53,13 +57,15 @@ export default function LoginScreen() {
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Usuario *</Text>
+            <Text style={styles.label}>Correo electrónico *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Ingresa tu usuario"
-              value={username}
-              onChangeText={setUsername}
-              editable={!loading}
+              placeholder="Ingresa tu correo electrónico"
+              value={email}
+              onChangeText={setEmail}
+              editable={!isLoading}
+              keyboardType="email-address"
+              autoCapitalize="none"
               placeholderTextColor="#999"
             />
           </View>
@@ -73,7 +79,7 @@ export default function LoginScreen() {
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
-                editable={!loading}
+                editable={!isLoading}
                 placeholderTextColor="#999"
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
@@ -87,11 +93,11 @@ export default function LoginScreen() {
           </View>
 
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={[styles.button, isLoading && styles.buttonDisabled]}
             onPress={handleLogin}
-            disabled={loading}
+            disabled={isLoading}
           >
-            {loading ? (
+            {isLoading ? (
               <ActivityIndicator color={COLORS.white} />
             ) : (
               <Text style={styles.buttonText}>Iniciar Sesión</Text>
