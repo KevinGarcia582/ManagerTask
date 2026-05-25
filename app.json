@@ -37,6 +37,15 @@
             "backgroundColor": "#001A3A"
           }
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35
+          }
+        }
       ]
     ],
     "experiments": {
