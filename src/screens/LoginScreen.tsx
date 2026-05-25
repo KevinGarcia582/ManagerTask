@@ -1,10 +1,10 @@
 import { useAuth } from "@/src/context/AuthContext";
+import { useStyledAlert } from "@/src/components/StyledAlert";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     ScrollView,
     StyleSheet,
     Text,
@@ -28,10 +28,11 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
+  const showAlert = useStyledAlert();
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      Alert.alert("Error", "Por favor completa todos los campos");
+      showAlert({ variant: "error", title: "Error", message: "Por favor completa todos los campos" });
       return;
     }
 
@@ -40,7 +41,7 @@ export default function LoginScreen() {
       await login(email.trim(), password);
       router.replace("/(tabs)");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Credenciales incorrectas");
+      showAlert({ variant: "error", title: "Error", message: error.message || "Credenciales incorrectas" });
     } finally {
       setIsLoading(false);
     }

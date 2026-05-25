@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { OnboardingOverlay } from "@/src/components/OnboardingOverlay";
 
 const COLORS = {
   primary: "#C8102E",
@@ -46,47 +47,40 @@ export default function TabLayout() {
         name="tasks"
         options={{
           title: "Tareas",
-          tabBarIcon: ({ size }) => (
-            <MaterialCommunityIcons name="clipboard-text-outline" size={size} color={COLORS.border} />
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="clipboard-text-outline" size={size} color={color} />
           ),
-          tabBarLabelStyle: { color: COLORS.border },
         }}
-        listeners={{ tabPress: (e) => e.preventDefault() }}
       />
       <Tabs.Screen
         name="notes"
         options={{
           title: "Notas",
-          tabBarIcon: ({ size }) => (
-            <MaterialCommunityIcons name="note-text-outline" size={size} color={COLORS.border} />
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="note-text-outline" size={size} color={color} />
           ),
-          tabBarLabelStyle: { color: COLORS.border },
         }}
-        listeners={{ tabPress: (e) => e.preventDefault() }}
       />
       <Tabs.Screen
         name="stats"
         options={{
           title: "Estadísticas",
-          tabBarIcon: ({ size }) => (
-            <MaterialCommunityIcons name="chart-bar" size={size} color={COLORS.border} />
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="chart-bar" size={size} color={color} />
           ),
-          tabBarLabelStyle: { color: COLORS.border },
         }}
-        listeners={{ tabPress: (e) => e.preventDefault() }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Perfil",
-          tabBarIcon: ({ size }) => (
-            <MaterialCommunityIcons name="account-outline" size={size} color={COLORS.border} />
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="account-outline" size={size} color={color} />
           ),
-          tabBarLabelStyle: { color: COLORS.border },
         }}
-        listeners={{ tabPress: (e) => e.preventDefault() }}
       />
     </Tabs>
+    <OnboardingOverlay />
     </SafeAreaView>
   );
 }

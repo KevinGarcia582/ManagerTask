@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#003B82"/>
+      <stop offset="100%" stop-color="#002855"/>
+    </linearGradient>
+    <linearGradient id="capGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#003B82"/>
+      <stop offset="100%" stop-color="#001A3A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#E6F4FE"/>
+
+  <!-- Owl ears (triangles) -->
+  <polygon points="300,340 340,220 380,320" fill="#003B82"/>
+  <polygon points="644,320 684,220 724,340" fill="#003B82"/>
+
+  <!-- Owl body circle -->
+  <circle cx="512" cy="480" r="260" fill="url(#bodyGrad)"/>
+
+  <!-- Inner lighter circle -->
+  <circle cx="512" cy="510" r="180" fill="#0A4C9A" opacity="0.5"/>
+
+  <!-- Left eye outer -->
+  <circle cx="420" cy="400" r="72" fill="white"/>
+  <circle cx="420" cy="400" r="38" fill="#003B82"/>
+  <circle cx="432" cy="388" r="14" fill="white"/>
+
+  <!-- Right eye outer -->
+  <circle cx="604" cy="400" r="72" fill="white"/>
+  <circle cx="604" cy="400" r="38" fill="#003B82"/>
+  <circle cx="616" cy="388" r="14" fill="white"/>
+
+  <!-- Beak -->
+  <polygon points="512,460 478,510 546,510" fill="#D62839"/>
+
+  <!-- Graduation cap - main shape -->
+  <polygon points="310,280 512,210 714,280 512,310" fill="url(#capGrad)"/>
+
+  <!-- Cap board -->
+  <rect x="300" y="210" width="424" height="22" rx="10" fill="#003B82"/>
+  <rect x="300" y="210" width="424" height="8" rx="4" fill="#0A4C9A" opacity="0.6"/>
+
+  <!-- Tassel -->
+  <line x1="700" y1="210" x2="744" y2="152" stroke="#D62839" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="744" cy="152" r="18" fill="#D62839"/>
+  <line x1="744" y1="170" x2="730" y2="210" stroke="#D62839" stroke-width="3"/>
+  <line x1="744" y1="170" x2="748" y2="208" stroke="#D62839" stroke-width="3"/>
+  <line x1="744" y1="170" x2="758" y2="210" stroke="#D62839" stroke-width="3"/>
+
+  <!-- ManagerTask text -->
+  <text x="512" y="830" font-family="system-ui, -apple-system, sans-serif" font-size="76" font-weight="800" fill="#003B82" text-anchor="middle" letter-spacing="-1">ManagerTask</text>
+</svg>

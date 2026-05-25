@@ -2,10 +2,12 @@ import { Platform } from "react-native";
 
 let Notifications: any = null;
 
-try {
-  Notifications = require("expo-notifications");
-} catch {
-  // Notifications not available in Expo Go, will work in development builds
+if (Platform.OS !== "web") {
+  try {
+    Notifications = require("expo-notifications");
+  } catch {
+    // Notifications not available in Expo Go, will work in development builds
+  }
 }
 
 if (Notifications) {

@@ -1,14 +1,11 @@
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
+import { AlertProvider } from "@/src/components/StyledAlert";
 import { requestNotificationPermissions } from "@/src/lib/notifications";
 import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import "react-native-reanimated";
-
-export const unstable_settings = {
-  initialRouteName: "(auth)",
-};
 
 function RootLayoutNav() {
   const { user, loading } = useAuth();
@@ -42,13 +39,17 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   useEffect(() => {
-    requestNotificationPermissions();
+    if (Platform.OS !== "web") {
+      requestNotificationPermissions();
+    }
   }, []);
 
   return (
     <AuthProvider>
-      <RootLayoutNav />
-      <StatusBar style="auto" />
+      <AlertProvider>
+        <RootLayoutNav />
+        <StatusBar style="auto" />
+      </AlertProvider>
     </AuthProvider>
   );
 }

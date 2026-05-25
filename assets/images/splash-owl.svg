@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1284 2778">
+  <defs>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#003B82"/>
+      <stop offset="100%" stop-color="#002855"/>
+    </linearGradient>
+    <linearGradient id="capGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#003B82"/>
+      <stop offset="100%" stop-color="#001A3A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1284" height="2778" fill="#E6F4FE"/>
+
+  <!-- Owl ears -->
+  <polygon points="440,580 500,380 540,550" fill="#003B82"/>
+  <polygon points="744,550 784,380 844,580" fill="#003B82"/>
+
+  <!-- Owl body -->
+  <circle cx="642" cy="780" r="340" fill="url(#bodyGrad)"/>
+
+  <!-- Inner -->
+  <circle cx="642" cy="820" r="240" fill="#0A4C9A" opacity="0.5"/>
+
+  <!-- Left eye -->
+  <circle cx="530" cy="670" r="90" fill="white"/>
+  <circle cx="530" cy="670" r="48" fill="#003B82"/>
+  <circle cx="546" cy="654" r="18" fill="white"/>
+
+  <!-- Right eye -->
+  <circle cx="754" cy="670" r="90" fill="white"/>
+  <circle cx="754" cy="670" r="48" fill="#003B82"/>
+  <circle cx="770" cy="654" r="18" fill="white"/>
+
+  <!-- Beak -->
+  <polygon points="642,760 602,830 682,830" fill="#D62839"/>
+
+  <!-- Grad cap -->
+  <polygon points="340,500 642,410 944,500 642,540" fill="url(#capGrad)"/>
+  <rect x="320" y="410" width="644" height="28" rx="12" fill="#003B82"/>
+  <rect x="320" y="410" width="644" height="10" rx="5" fill="#0A4C9A" opacity="0.6"/>
+
+  <!-- Tassel -->
+  <line x1="930" y1="410" x2="990" y2="330" stroke="#D62839" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="990" cy="330" r="24" fill="#D62839"/>
+  <line x1="990" y1="354" x2="970" y2="410" stroke="#D62839" stroke-width="4"/>
+  <line x1="990" y1="354" x2="994" y2="408" stroke="#D62839" stroke-width="4"/>
+  <line x1="990" y1="354" x2="1010" y2="410" stroke="#D62839" stroke-width="4"/>
+
+  <!-- Title -->
+  <text x="642" y="1300" font-family="system-ui, sans-serif" font-size="120" font-weight="800" fill="#003B82" text-anchor="middle" letter-spacing="-2">ManagerTask</text>
+
+  <!-- Subtitle -->
+  <text x="642" y="1400" font-family="system-ui, sans-serif" font-size="48" font-weight="500" fill="#6B7280" text-anchor="middle">Sistema de Gestión Académica</text>
+
+  <!-- Bottom decoration line -->
+  <line x1="492" y1="1480" x2="792" y2="1480" stroke="#003B82" stroke-width="4" opacity="0.2" stroke-linecap="round"/>
+</svg>

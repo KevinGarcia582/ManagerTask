@@ -1,12 +1,12 @@
 import { supabase } from "@/src/lib/supabase";
 import { useAuth } from "@/src/context/AuthContext";
-import { rescheduleAllNotifications } from "@/src/lib/notifications";
+import { useStyledAlert } from "@/src/components/StyledAlert";
+import { useNotifications } from "@/src/hooks/useNotifications";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Platform,
   ScrollView,
@@ -75,6 +75,8 @@ function getCreditColor(credits: number) {
 
 export default function ScheduleScreen() {
   const { user } = useAuth();
+  const showAlert = useStyledAlert();
+  const { refreshNotifications } = useNotifications(user?.id);
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,19 +107,9 @@ export default function ScheduleScreen() {
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const [loadingCourses, setLoadingCourses] = useState(false);
 
-  const [taskModalVisible, setTaskModalVisible] = useState(false);
-  const [taskSubject, setTaskSubject] = useState<{ id: string; name: string } | null>(null);
-  const [taskType, setTaskType] = useState<"tarea" | "parcial">("tarea");
-  const [taskTitle, setTaskTitle] = useState("");
-  const [taskDueDate, setTaskDueDate] = useState("");
-  const [taskDueTime, setTaskDueTime] = useState("");
-  const [savingTask, setSavingTask] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
-    const [schedRes, subjRes, actRes] = await Promise.all([
+    const [schedRes, subjRes] = await Promise.all([
       supabase
         .from("schedules")
         .select("id, subject_id, day_of_week, start_time, end_time, classroom, subjects(id, name, color, credits)")
@@ -125,15 +117,9 @@ export default function ScheduleScreen() {
         .order("day_of_week")
         .order("start_time"),
       supabase.from("subjects").select("id, name, color, credits").eq("user_id", user.id).order("name"),
-      supabase
-        .from("activities")
-        .select("id, type, title, due_date, due_time, subject_id, subjects(id, name)")
-        .eq("user_id", user.id)
-        .eq("completed", false),
     ]);
 
     const schedulesData = (schedRes.data as any[]) || [];
-    const activitiesData = (actRes.data as any[]) || [];
 
     setSchedules(schedulesData);
     setSubjects((subjRes.data as any[]) || []);
@@ -141,7 +127,7 @@ export default function ScheduleScreen() {
       setFormSubjectId(subjRes.data[0].id);
     }
 
-    rescheduleAllNotifications(schedulesData, activitiesData);
+    refreshNotifications();
 
     if (!semesterFilter && user?.program) {
       const { data: progData } = await supabase
@@ -156,19 +142,11 @@ export default function ScheduleScreen() {
     }
 
     setLoading(false);
-  }, [user?.id, formSubjectId]);
+  }, [user?.id, formSubjectId, refreshNotifications]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  useEffect(() => {
-    if (taskType === "parcial" && taskSubject?.name) {
-      setTaskTitle(`Parcial de ${taskSubject.name}`);
-    } else if (taskType === "tarea") {
-      setTaskTitle("");
-    }
-  }, [taskType, taskSubject?.name]);
 
   useEffect(() => {
     if (!semesterFilter || !user?.program) {
@@ -218,7 +196,7 @@ export default function ScheduleScreen() {
         })
         .select("id")
         .single();
-      if (error || !newSubj) { Alert.alert("Error", "No se pudo agregar la materia"); return; }
+      if (error || !newSubj) { showAlert({ variant: "error", title: "Error", message: "No se pudo agregar la materia" }); return; }
       subjectId = newSubj.id;
       await fetchData();
     }
@@ -234,17 +212,17 @@ export default function ScheduleScreen() {
   };
 
   const deleteSchedule = (schedule: ScheduleItem) => {
-    Alert.alert("Eliminar", "¿Eliminar este bloque de horario?", [
-      { text: "Cancelar" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: async () => {
-          const { error } = await supabase.from("schedules").delete().eq("id", schedule.id);
-          if (!error) setSchedules((prev) => prev.filter((s) => s.id !== schedule.id));
-        },
+    showAlert({
+      variant: "confirm",
+      title: "Eliminar",
+      message: "¿Eliminar este bloque de horario?",
+      confirmText: "Eliminar",
+      cancelText: "Cancelar",
+      onConfirm: async () => {
+        const { error } = await supabase.from("schedules").delete().eq("id", schedule.id);
+        if (!error) setSchedules((prev) => prev.filter((s) => s.id !== schedule.id));
       },
-    ]);
+    });
   };
 
   const openEditModal = (schedule: ScheduleItem) => {
@@ -258,49 +236,12 @@ export default function ScheduleScreen() {
     setModalVisible(true);
   };
 
-  const openTaskForm = (schedule: ScheduleItem) => {
-    if (!schedule.subjects) return;
-    setTaskSubject({ id: schedule.subject_id, name: schedule.subjects.name });
-    setTaskType("tarea");
-    setTaskTitle("");
-    const today = new Date();
-    setTaskDueDate(formatDate(today));
-    setTaskDueTime("");
-    setTaskModalVisible(true);
-  };
-
-  const formatDate = (date: Date) => {
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  };
-
-  const displayDate = (dateStr: string) => {
-    if (!dateStr) return "Seleccionar fecha";
-    const [y, m, d] = dateStr.split("-");
-    return `${d}/${m}/${y}`;
-  };
-
   const displayTime = (timeStr: string) => {
     if (!timeStr) return "Seleccionar hora";
     const [h, m] = timeStr.split(":").map(Number);
     const period = h >= 12 ? "PM" : "AM";
     const h12 = h % 12 || 12;
     return `${h12}:${String(m).padStart(2, "0")} ${period}`;
-  };
-
-  const onDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (Platform.OS === "android") setShowDatePicker(false);
-    if (Platform.OS === "ios") setShowDatePicker(false);
-    if (selectedDate) setTaskDueDate(formatDate(selectedDate));
-  };
-
-  const onTimeChange = (_event: DateTimePickerEvent, selectedTime?: Date) => {
-    if (Platform.OS === "android") setShowTimePicker(false);
-    if (Platform.OS === "ios") setShowTimePicker(false);
-    if (selectedTime) {
-      const h = selectedTime.getHours();
-      const m = selectedTime.getMinutes();
-      setTaskDueTime(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-    }
   };
 
   const onStartTimeChange = (_event: DateTimePickerEvent, selectedTime?: Date) => {
@@ -319,34 +260,10 @@ export default function ScheduleScreen() {
     }
   };
 
-  const handleSaveTask = async () => {
-    if (!taskTitle.trim()) { Alert.alert("Error", "El título es obligatorio"); return; }
-    if (!taskDueDate) { Alert.alert("Error", "La fecha es obligatoria"); return; }
-
-    setSavingTask(true);
-    const { error } = await supabase.from("activities").insert({
-      user_id: user?.id,
-      subject_id: taskSubject?.id,
-      type: taskType,
-      title: taskTitle.trim(),
-      due_date: taskDueDate,
-      due_time: taskDueTime || null,
-    });
-
-    if (error) {
-      Alert.alert("Error", "No se pudo guardar la actividad");
-    } else {
-      Alert.alert("Éxito", "Actividad guardada");
-      setTaskModalVisible(false);
-      await fetchData();
-    }
-    setSavingTask(false);
-  };
-
   const handleSave = async () => {
-    if (!formSubjectId) { Alert.alert("Error", "Selecciona una materia"); return; }
+    if (!formSubjectId) { showAlert({ variant: "error", title: "Error", message: "Selecciona una materia" }); return; }
     if (timeToMinutes(formEndTime) <= timeToMinutes(formStartTime)) {
-      Alert.alert("Error", "La hora de fin debe ser mayor a la de inicio"); return;
+      showAlert({ variant: "error", title: "Error", message: "La hora de fin debe ser mayor a la de inicio" }); return;
     }
 
     setSaving(true);
@@ -360,7 +277,7 @@ export default function ScheduleScreen() {
       .gt("end_time", formStartTime);
 
     if (conflicting && conflicting.length > 0 && (!editingSchedule || conflicting.some((c: any) => c.id !== editingSchedule.id))) {
-      Alert.alert("Conflicto", "Ya tienes una clase a esa hora ese día");
+      showAlert({ variant: "error", title: "Conflicto", message: "Ya tienes una clase a esa hora ese día" });
       setSaving(false);
       return;
     }
@@ -374,10 +291,10 @@ export default function ScheduleScreen() {
     };
     if (editingSchedule) {
       const { error } = await supabase.from("schedules").update(payload).eq("id", editingSchedule.id);
-      if (error) { Alert.alert("Error", "No se pudo actualizar"); setSaving(false); return; }
+      if (error) { showAlert({ variant: "error", title: "Error", message: "No se pudo actualizar" }); setSaving(false); return; }
     } else {
       const { error } = await supabase.from("schedules").insert(payload);
-      if (error) { Alert.alert("Error", "No se pudo guardar"); setSaving(false); return; }
+      if (error) { showAlert({ variant: "error", title: "Error", message: "No se pudo guardar" }); setSaving(false); return; }
     }
     setSaving(false);
     setModalVisible(false);
@@ -389,7 +306,7 @@ export default function ScheduleScreen() {
   };
 
   const openLoadCoursesModal = async () => {
-    if (!user?.program) { Alert.alert("Perfil incompleto", "No tienes un programa asignado."); return; }
+    if (!user?.program) { showAlert({ variant: "error", title: "Perfil incompleto", message: "No tienes un programa asignado." }); return; }
     setLoadingCourses(true);
     setLoadModalVisible(true);
     setLoadSemester(null);
@@ -397,7 +314,7 @@ export default function ScheduleScreen() {
     setSelectedCourseIds(new Set());
     setLoadSemesterDropdownOpen(false);
     const { data: progData } = await supabase.from("programs").select("id").eq("name", user.program).single();
-    if (!progData) { Alert.alert("Error", `No se encontró el programa "${user.program}"`); setLoadingCourses(false); return; }
+    if (!progData) { showAlert({ variant: "error", title: "Error", message: `No se encontró el programa "${user.program}"` }); setLoadingCourses(false); return; }
     const { data: semestersData } = await supabase.from("courses").select("semester").eq("program_id", progData.id);
     if (semestersData) {
       const unique = [...new Set(semestersData.map((s: any) => s.semester))].sort((a, b) => a - b);
@@ -428,7 +345,7 @@ export default function ScheduleScreen() {
   };
 
   const addSelectedCourses = async () => {
-    if (selectedCourseIds.size === 0) { Alert.alert("Info", "Selecciona al menos una materia"); return; }
+    if (selectedCourseIds.size === 0) { showAlert({ variant: "info", title: "Info", message: "Selecciona al menos una materia" }); return; }
     const selected = loadCourses.filter((c) => selectedCourseIds.has(c.id));
     const colors = ["#4A90D9", "#E74C3C", "#2ECC71", "#F39C12", "#9B59B6", "#1ABC9C", "#E67E22", "#3498DB"];
     const newSubjects = selected.map((course, index) => ({
@@ -440,8 +357,8 @@ export default function ScheduleScreen() {
       is_custom: false,
     }));
     const { error } = await supabase.from("subjects").insert(newSubjects);
-    if (error) { Alert.alert("Error", "No se pudieron cargar las materias: " + error.message); }
-    else { Alert.alert("Éxito", `${newSubjects.length} materias agregadas`); setLoadModalVisible(false); await fetchData(); }
+    if (error) { showAlert({ variant: "error", title: "Error", message: "No se pudieron cargar las materias: " + error.message }); }
+    else { showAlert({ variant: "success", title: "Éxito", message: `${newSubjects.length} materias agregadas` }); setLoadModalVisible(false); await fetchData(); }
   };
 
   const canGoLeft = dayOffset > 0;
@@ -465,7 +382,6 @@ export default function ScheduleScreen() {
     return (
       <TouchableOpacity
         style={[styles.classBlock, { borderColor, backgroundColor: bgColor, height: 52 * durationBlocks }]}
-        onPress={() => openTaskForm(cls)}
         onLongPress={() => openEditModal(cls)}
       >
         <Text style={styles.classBlockName} numberOfLines={2}>{cls.subjects?.name || "Sin materia"}</Text>
@@ -680,77 +596,6 @@ export default function ScheduleScreen() {
                 <Text style={styles.deleteButtonText}>Eliminar bloque</Text>
               </TouchableOpacity>
             )}
-
-            <View style={{ height: 40 }} />
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Task Form Modal */}
-      <Modal visible={taskModalVisible} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setTaskModalVisible(false)}>
-              <Text style={styles.modalCancel}>Cancelar</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Nueva Actividad</Text>
-            <TouchableOpacity onPress={handleSaveTask} disabled={savingTask}>
-              <Text style={styles.modalSave}>{savingTask ? "..." : "Guardar"}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Materia</Text>
-              <View style={styles.preselectedChip}>
-                <Text style={styles.preselectedChipText}>{taskSubject?.name}</Text>
-              </View>
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Tipo</Text>
-              <View style={styles.typeRow}>
-                {(["tarea", "parcial"] as const).map((t) => (
-                  <TouchableOpacity key={t} style={[styles.typeChip, taskType === t && styles.typeChipActive]} onPress={() => setTaskType(t)}>
-                    <MaterialCommunityIcons name={t === "tarea" ? "file-document-outline" : "pencil-box-outline"} size={16} color={taskType === t ? COLORS.white : COLORS.gray} />
-                    <Text style={[styles.typeChipText, taskType === t && styles.typeChipTextActive]}>{t === "tarea" ? "Tarea" : "Parcial"}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Título *</Text>
-              <TextInput
-                style={[styles.formInput, taskType === "parcial" && { backgroundColor: COLORS.bgAlt, color: COLORS.gray }]}
-                value={taskTitle}
-                onChangeText={setTaskTitle}
-                placeholder="Nombre de la actividad"
-                editable={taskType !== "parcial"}
-                placeholderTextColor="#999"
-              />
-            </View>
-
-            <View style={styles.formRow}>
-              <View style={[styles.formGroup, { flex: 1 }]}>
-                <Text style={styles.formLabel}>Fecha *</Text>
-                <TouchableOpacity style={styles.formInput} onPress={() => setShowDatePicker(true)}>
-                  <Text style={{ color: taskDueDate ? COLORS.dark : "#999", fontSize: 14 }}>{displayDate(taskDueDate)}</Text>
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker value={taskDueDate ? new Date(taskDueDate + "T00:00:00") : new Date()} mode="date" display={Platform.OS === "ios" ? "inline" : "default"} onChange={onDateChange} />
-                )}
-              </View>
-              <View style={[styles.formGroup, { flex: 1 }]}>
-                <Text style={styles.formLabel}>Hora</Text>
-                <TouchableOpacity style={styles.formInput} onPress={() => setShowTimePicker(true)}>
-                  <Text style={{ color: taskDueTime ? COLORS.dark : "#999", fontSize: 14 }}>{displayTime(taskDueTime)}</Text>
-                </TouchableOpacity>
-                {showTimePicker && (
-                  <DateTimePicker value={taskDueTime ? (() => { const [h, m] = taskDueTime.split(":").map(Number); const d = new Date(); d.setHours(h, m, 0, 0); return d; })() : new Date()} mode="time" display={Platform.OS === "ios" ? "inline" : "default"} onChange={onTimeChange} />
-                )}
-              </View>
-            </View>
 
             <View style={{ height: 40 }} />
           </ScrollView>

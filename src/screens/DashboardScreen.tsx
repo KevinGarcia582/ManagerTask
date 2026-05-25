@@ -1,14 +1,16 @@
 import { supabase } from "@/src/lib/supabase";
 import { useAuth } from "@/src/context/AuthContext";
+import { triggerOnboardingRestart } from "@/src/hooks/useOnboarding";
+import { DashboardSkeleton } from "@/src/components/SkeletonLoader";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
     RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View,
 } from "react-native";
 
@@ -72,6 +74,7 @@ export default function DashboardScreen() {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [todayClasses, setTodayClasses] = useState<ScheduleItem[]>([]);
   const [upcomingActivities, setUpcomingActivities] = useState<ActivityItem[]>([]);
@@ -81,7 +84,7 @@ export default function DashboardScreen() {
   });
 
   const fetchDashboard = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) { setLoading(false); return; }
 
     const today = new Date();
     const jsDay = today.getDay();
@@ -138,6 +141,7 @@ export default function DashboardScreen() {
       }
     } catch (error) {
       console.error("Error fetching dashboard:", error);
+      setError("No se pudieron cargar los datos. Desliza para intentar de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -158,8 +162,7 @@ export default function DashboardScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.dark} />
-        <Text style={styles.loadingText}>Cargando panel...</Text>
+        <DashboardSkeleton />
       </View>
     );
   }
@@ -167,9 +170,22 @@ export default function DashboardScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <MaterialCommunityIcons name="school" size={28} color={COLORS.white} />
-        <Text style={styles.headerTitle}>ManagerTask</Text>
+        <View style={styles.headerLeft}>
+          <MaterialCommunityIcons name="school" size={28} color={COLORS.white} />
+          <Text style={styles.headerTitle}>ManagerTask</Text>
+        </View>
+        <TouchableOpacity style={styles.guideButton} onPress={triggerOnboardingRestart} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="owl" size={18} color={COLORS.dark} />
+          <Text style={styles.guideButtonText}>Guíame Búho</Text>
+        </TouchableOpacity>
       </View>
+
+      {error && (
+        <View style={styles.errorBanner}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#ffffff" />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
       <ScrollView
         style={styles.content}
@@ -280,13 +296,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
     color: COLORS.white,
+  },
+  guideButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  guideButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.dark,
+  },
+  errorBanner: {
+    backgroundColor: "#E74C3C",
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  errorText: {
+    color: "#ffffff",
+    fontSize: 13,
+    flex: 1,
   },
   content: {
     flex: 1,

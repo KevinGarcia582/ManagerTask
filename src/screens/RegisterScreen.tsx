@@ -1,11 +1,11 @@
 import { supabase } from "@/src/lib/supabase";
 import { useAuth } from "@/src/context/AuthContext";
+import { useStyledAlert } from "@/src/components/StyledAlert";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     ScrollView,
     StyleSheet,
     Text,
@@ -36,6 +36,7 @@ export default function RegisterScreen() {
   const [loadingPrograms, setLoadingPrograms] = useState(true);
 
   const { register, updateProfile } = useAuth();
+  const showAlert = useStyledAlert();
 
   useEffect(() => {
     fetchPrograms();
@@ -62,22 +63,22 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     if (!email.trim() || !fullName.trim() || !password || !confirmPassword) {
-      Alert.alert("Error", "Por favor completa todos los campos");
+      showAlert({ variant: "error", title: "Error", message: "Por favor completa todos los campos" });
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("Error", "Las contraseñas no coinciden");
+      showAlert({ variant: "error", title: "Error", message: "Las contraseñas no coinciden" });
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert("Error", "La contraseña debe tener al menos 6 caracteres");
+      showAlert({ variant: "error", title: "Error", message: "La contraseña debe tener al menos 6 caracteres" });
       return;
     }
 
     if (!selectedProgram) {
-      Alert.alert("Error", "Selecciona un programa académico");
+      showAlert({ variant: "error", title: "Error", message: "Selecciona un programa académico" });
       return;
     }
 
@@ -90,7 +91,7 @@ export default function RegisterScreen() {
 
       router.replace("/(tabs)");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "No se pudo crear la cuenta");
+      showAlert({ variant: "error", title: "Error", message: error.message || "No se pudo crear la cuenta" });
     } finally {
       setIsLoading(false);
     }
