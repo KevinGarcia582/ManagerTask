@@ -224,7 +224,9 @@ export default function ScheduleScreen() {
       cancelText: "Cancelar",
       onConfirm: async () => {
         const { error } = await supabase.from("schedules").delete().eq("id", schedule.id);
-        if (!error) setSchedules((prev) => prev.filter((s) => s.id !== schedule.id));
+        if (!error) {
+          setSchedules((prev) => prev.filter((s) => s.id !== schedule.id));
+        }
       },
     });
   };
@@ -294,11 +296,19 @@ export default function ScheduleScreen() {
       classroom: formClassroom.trim() || null,
     };
     if (editingSchedule) {
-      const { error } = await supabase.from("schedules").update(payload).eq("id", editingSchedule.id);
+      const { error, data } = await supabase.from("schedules").update(payload).eq("id", editingSchedule.id).select("id, subject_id, day_of_week, start_time, end_time, classroom, subjects(id, name, color, credits)").single();
       if (error) { showAlert({ variant: "error", title: "Error", message: "No se pudo actualizar" }); setSaving(false); return; }
+      if (data) {
+        const normalized = { ...data, subjects: Array.isArray(data.subjects) ? data.subjects[0] ?? null : data.subjects };
+        setSchedules((prev) => prev.map((s) => (s.id === editingSchedule.id ? normalized : s)));
+      }
     } else {
-      const { error } = await supabase.from("schedules").insert(payload);
+      const { error, data } = await supabase.from("schedules").insert(payload).select("id, subject_id, day_of_week, start_time, end_time, classroom, subjects(id, name, color, credits)").single();
       if (error) { showAlert({ variant: "error", title: "Error", message: "No se pudo guardar" }); setSaving(false); return; }
+      if (data) {
+        const normalized = { ...data, subjects: Array.isArray(data.subjects) ? data.subjects[0] ?? null : data.subjects };
+        setSchedules((prev) => [...prev, normalized]);
+      }
     }
     setSaving(false);
     setModalVisible(false);

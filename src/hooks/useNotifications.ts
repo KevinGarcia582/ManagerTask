@@ -2,8 +2,6 @@ import { useCallback, useEffect } from "react";
 import { supabase } from "@/src/lib/supabase";
 import {
   rescheduleAllNotifications,
-  scheduleSingleClassNotification,
-  cancelSingleClassNotification,
   scheduleSingleActivityNotifications,
   cancelSingleActivityNotifications,
 } from "@/src/lib/notifications";
@@ -33,24 +31,6 @@ export function useNotifications(userId: string | undefined) {
   useEffect(() => {
     if (!userId) return;
 
-    const scheduleChannel = supabase
-      .channel("schedules-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "schedules", filter: `user_id=eq.${userId}` },
-        async (payload) => {
-          console.log("[Realtime] Schedule change:", payload.eventType, payload.new);
-          if (payload.eventType === "DELETE" || payload.old) {
-            const oldId = (payload.old as any)?.id;
-            if (oldId) cancelSingleClassNotification(oldId);
-          }
-          if (payload.eventType !== "DELETE" && payload.new) {
-            await scheduleSingleClassNotification(payload.new as any);
-          }
-        },
-      )
-      .subscribe();
-
     const activitiesChannel = supabase
       .channel("activities-changes")
       .on(
@@ -75,7 +55,6 @@ export function useNotifications(userId: string | undefined) {
       .subscribe();
 
     return () => {
-      scheduleChannel.unsubscribe();
       activitiesChannel.unsubscribe();
     };
   }, [userId]);
