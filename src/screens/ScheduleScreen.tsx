@@ -4,8 +4,9 @@ import { useStyledAlert } from "@/src/components/StyledAlert";
 import { useNotifications } from "@/src/hooks/useNotifications";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -108,6 +109,8 @@ export default function ScheduleScreen() {
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const [loadingCourses, setLoadingCourses] = useState(false);
 
+  const subjectAutoSelected = useRef(false);
+
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
     const [schedRes, subjRes] = await Promise.all([
@@ -124,18 +127,25 @@ export default function ScheduleScreen() {
 
     setSchedules(schedulesData);
     setSubjects((subjRes.data as any[]) || []);
-    if (subjRes.data && subjRes.data.length > 0 && !formSubjectId) {
+    if (subjRes.data && subjRes.data.length > 0 && !subjectAutoSelected.current) {
       setFormSubjectId(subjRes.data[0].id);
+      subjectAutoSelected.current = true;
     }
 
     refreshNotifications();
 
     setLoading(false);
-  }, [user?.id, formSubjectId, refreshNotifications]);
+  }, [user?.id, refreshNotifications]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   useEffect(() => {
     if (!user?.program) return;
