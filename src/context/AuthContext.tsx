@@ -34,7 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .then(({ data: { session } }) => {
         setSession(session);
         if (session) {
-          fetchProfile(session.user.id);
+          fetchProfile(session.user.id, session.user.email || "");
         } else {
           setLoading(false);
         }
@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        fetchProfile(session.user.id);
+        fetchProfile(session.user.id, session.user.email || "");
       } else {
         setUser(null);
         setLoading(false);
@@ -57,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, email: string) => {
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -69,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setUser({
         id: userId,
-        email: session?.user.email || "",
+        email,
         fullName: data.full_name,
         program: data.program,
         semester: data.semester,
@@ -82,8 +82,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshProfile = async () => {
-    if (!session?.user.id) return;
-    await fetchProfile(session.user.id);
+    if (!session?.user.id || !session?.user.email) return;
+    await fetchProfile(session.user.id, session.user.email);
   };
 
   const login = async (email: string, password: string) => {

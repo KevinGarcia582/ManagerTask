@@ -35,7 +35,7 @@ export default function RegisterScreen() {
   const [selectedProgram, setSelectedProgram] = useState("");
   const [loadingPrograms, setLoadingPrograms] = useState(true);
 
-  const { register, updateProfile } = useAuth();
+  const { register, updateProfile, logout } = useAuth();
   const showAlert = useStyledAlert();
 
   useEffect(() => {
@@ -89,7 +89,9 @@ export default function RegisterScreen() {
       const programName = programs.find((p) => p.id === selectedProgram)?.name || "";
       await updateProfile(programName, 0, userId, fullName.trim());
 
-      router.replace("/(tabs)");
+      showAlert({ variant: "success", title: "Registro Exitoso", message: "Usuario creado correctamente. Ahora inicia sesión." });
+      await logout();
+      router.replace("/login");
     } catch (error: any) {
       showAlert({ variant: "error", title: "Error", message: error.message || "No se pudo crear la cuenta" });
     } finally {

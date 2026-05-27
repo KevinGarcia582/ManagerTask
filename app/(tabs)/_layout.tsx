@@ -1,6 +1,7 @@
+import { useAuth } from "@/src/context/AuthContext";
 import { Tabs } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { StyleSheet } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { OnboardingOverlay } from "@/src/components/OnboardingOverlay";
 
@@ -14,6 +15,16 @@ const COLORS = {
 };
 
 export default function TabLayout() {
+  const { user, loading } = useAuth();
+
+  if (loading || (user && !user.program)) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#ffffff", justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color={COLORS.dark} />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#003D66" }}>
     <Tabs
@@ -80,7 +91,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
-    <OnboardingOverlay />
+    {user && <OnboardingOverlay />}
     </SafeAreaView>
   );
 }

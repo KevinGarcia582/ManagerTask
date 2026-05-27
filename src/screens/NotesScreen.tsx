@@ -4,6 +4,7 @@ import { useStyledAlert } from "@/src/components/StyledAlert";
 import { NoteCardSkeleton } from "@/src/components/SkeletonLoader";
 import { useFocusEffect } from "@react-navigation/native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Modal,
@@ -329,7 +330,7 @@ export default function NotesScreen() {
       )}
 
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
+        <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancelar</Text>
@@ -453,7 +454,7 @@ export default function NotesScreen() {
 
             <View style={styles.bottomSpacing} />
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );

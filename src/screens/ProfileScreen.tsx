@@ -5,6 +5,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Modal,
@@ -234,7 +235,7 @@ export default function ProfileScreen() {
 
       {/* Edit Profile Modal */}
       <Modal visible={editModalVisible} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
+        <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setEditModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancelar</Text>
@@ -288,7 +289,7 @@ export default function ProfileScreen() {
 
             <View style={styles.bottomSpacing} />
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );

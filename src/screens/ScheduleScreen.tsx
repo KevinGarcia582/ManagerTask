@@ -4,6 +4,7 @@ import { useStyledAlert } from "@/src/components/StyledAlert";
 import { useNotifications } from "@/src/hooks/useNotifications";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -129,7 +130,16 @@ export default function ScheduleScreen() {
 
     refreshNotifications();
 
-    if (!semesterFilter && user?.program) {
+    setLoading(false);
+  }, [user?.id, formSubjectId, refreshNotifications]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (!user?.program) return;
+    (async () => {
       const { data: progData } = await supabase
         .from("programs").select("id").eq("name", user.program).single();
       if (progData) {
@@ -139,14 +149,8 @@ export default function ScheduleScreen() {
           setLoadSemesters([...new Set(semData.map((s: any) => s.semester))].sort((a, b) => a - b));
         }
       }
-    }
-
-    setLoading(false);
-  }, [user?.id, formSubjectId, refreshNotifications]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    })();
+  }, [user?.program]);
 
   useEffect(() => {
     if (!semesterFilter || !user?.program) {
@@ -505,7 +509,7 @@ export default function ScheduleScreen() {
 
       {/* Add/Edit Class Modal */}
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
+        <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancelar</Text>
@@ -599,12 +603,12 @@ export default function ScheduleScreen() {
 
             <View style={{ height: 40 }} />
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Load Courses Modal */}
       <Modal visible={loadModalVisible} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
+        <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setLoadModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancelar</Text>
@@ -657,7 +661,7 @@ export default function ScheduleScreen() {
 
             <View style={{ height: 40 }} />
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );

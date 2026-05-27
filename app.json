@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.uniboyaca.taskmanager"
+      "bundleIdentifier": "com.uniboyaca.taskmanager",
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"]
+      }
     },
     "android": {
       "package": "com.uniboyaca.taskmanager",
@@ -18,7 +21,19 @@
         "foregroundImage": "./assets/images/android-icon-foreground-owl.png",
         "monochromeImage": "./assets/images/android-icon-monochrome-owl.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
+        "POST_NOTIFICATIONS"
+      ],
+      "notification": {
+        "icon": "./assets/images/icon-owl.png",
+        "color": "#003D66",
+        "channelId": "default",
+        "androidMode": "default",
+        "androidCollapsedTitle": "ManagerTask"
+      }
     },
     "web": {
       "output": "static",

@@ -1,6 +1,12 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { supabase } from "@/src/lib/supabase";
-import { rescheduleAllNotifications } from "@/src/lib/notifications";
+import {
+  rescheduleAllNotifications,
+  scheduleSingleClassNotification,
+  cancelSingleClassNotification,
+  scheduleSingleActivityNotifications,
+  cancelSingleActivityNotifications,
+} from "@/src/lib/notifications";
 
 export function useNotifications(userId: string | undefined) {
   const refreshNotifications = useCallback(async () => {
@@ -22,6 +28,56 @@ export function useNotifications(userId: string | undefined) {
       (schedData as any[]) || [],
       (actData as any[]) || [],
     );
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const scheduleChannel = supabase
+      .channel("schedules-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "schedules", filter: `user_id=eq.${userId}` },
+        async (payload) => {
+          console.log("[Realtime] Schedule change:", payload.eventType, payload.new);
+          if (payload.eventType === "DELETE" || payload.old) {
+            const oldId = (payload.old as any)?.id;
+            if (oldId) cancelSingleClassNotification(oldId);
+          }
+          if (payload.eventType !== "DELETE" && payload.new) {
+            await scheduleSingleClassNotification(payload.new as any);
+          }
+        },
+      )
+      .subscribe();
+
+    const activitiesChannel = supabase
+      .channel("activities-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "activities", filter: `user_id=eq.${userId}` },
+        async (payload) => {
+          console.log("[Realtime] Activity change:", payload.eventType, payload.new);
+          if (payload.eventType === "DELETE" || payload.old) {
+            const oldId = (payload.old as any)?.id;
+            if (oldId) cancelSingleActivityNotifications(oldId);
+          }
+          if (payload.eventType !== "DELETE" && payload.new) {
+            const newAct = payload.new as any;
+            if (!newAct.completed) {
+              await scheduleSingleActivityNotifications(newAct);
+            } else {
+              cancelSingleActivityNotifications(newAct.id);
+            }
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      scheduleChannel.unsubscribe();
+      activitiesChannel.unsubscribe();
+    };
   }, [userId]);
 
   return { refreshNotifications };
